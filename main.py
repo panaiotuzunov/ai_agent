@@ -29,20 +29,36 @@ When a user asks a question or makes a request, make a function call plan. You c
 All paths you provide should be relative to the working directory. You do not need to specify the working directory in your function calls as it is automatically injected for security reasons.
 """
     is_verbose = (len(argv) == 3 and argv[2] == "--verbose")
-    response = client.models.generate_content(model="gemini-2.0-flash-001", contents=messages, config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt))
-    if not response.function_calls:
-        print(response.text)
-    if response.function_calls:
-        for function_call_part in response.function_calls:
-            result = call_function(function_call_part, is_verbose)
-            if not result.parts[0].function_response.response:
-                raise Exception("FATAL. No function response found.")
-            if is_verbose:
-                print(f"-> {result.parts[0].function_response.response}")
-    if is_verbose:
-        print(f"User prompt: {user_prompt}")
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+    
+    for i in range(20):
+        try:
+            response = client.models.generate_content(model="gemini-2.0-flash-001", contents=messages, config=types.GenerateContentConfig(tools=[available_functions], system_instruction=system_prompt))
+            
+            for candidate in response.candidates:
+                messages.append(candidate.content)
+            
+            if not response.function_calls:
+                print("Final response:")
+                print(response.text)
+                break
+            
+            if response.function_calls:
+                for function_call_part in response.function_calls:
+                    result = call_function(function_call_part, is_verbose)
+                    if not result.parts[0].function_response.response:
+                        raise Exception("FATAL. No function response found.")
+                    if is_verbose:
+                        print(f"-> {result.parts[0].function_response.response}")
+                    messages.append(result)
 
+            if is_verbose:
+                print(f"User prompt: {user_prompt}")
+                print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+                print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
+
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            break
+    
 main()
 
